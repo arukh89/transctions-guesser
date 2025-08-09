@@ -145,3 +145,340 @@
         .guess-input::placeholder {
             color: rgba(255, 255, 255, 0.5);
         }
+
+        .submit-btn {
+            width: 100%;
+            padding: 16px;
+            background: linear-gradient(45deg, #f7931a, #ffa500);
+            border: none;
+            border-radius: 12px;
+            color: white;
+            font-size: 16px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            margin-bottom: 16px;
+        }
+
+        .submit-btn:hover:not(:disabled) {
+            transform: translateY(-2px);
+            box-shadow: 0 8px 25px rgba(247, 147, 26, 0.4);
+        }
+
+        .submit-btn:disabled {
+            opacity: 0.6;
+            cursor: not-allowed;
+        }
+
+        .result {
+            padding: 16px;
+            border-radius: 12px;
+            text-align: center;
+            font-weight: 500;
+            margin-bottom: 16px;
+            animation: fadeIn 0.5s ease-out;
+        }
+
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(10px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+
+        .result.correct {
+            background: linear-gradient(45deg, #10b981, #059669);
+            border: 1px solid #34d399;
+        }
+
+        .result.close {
+            background: linear-gradient(45deg, #f59e0b, #d97706);
+            border: 1px solid #fbbf24;
+        }
+
+        .result.far {
+            background: linear-gradient(45deg, #ef4444, #dc2626);
+            border: 1px solid #f87171;
+        }
+
+        .stats {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 12px;
+            margin-top: 16px;
+        }
+
+        .stat-item {
+            background: rgba(0, 0, 0, 0.2);
+            padding: 12px;
+            border-radius: 8px;
+            text-align: center;
+        }
+
+        .stat-value {
+            font-size: 20px;
+            font-weight: 700;
+            color: #fbbf24;
+        }
+
+        .stat-label {
+            font-size: 12px;
+            color: rgba(255, 255, 255, 0.7);
+            margin-top: 4px;
+        }
+
+        .new-round-btn {
+            width: 100%;
+            padding: 12px;
+            background: rgba(255, 255, 255, 0.1);
+            border: 1px solid rgba(255, 255, 255, 0.3);
+            border-radius: 8px;
+            color: white;
+            font-size: 14px;
+            cursor: pointer;
+            transition: all 0.3s ease;
+        }
+
+        .new-round-btn:hover {
+            background: rgba(255, 255, 255, 0.2);
+        }
+
+        .loading {
+            text-align: center;
+            padding: 20px;
+            color: rgba(255, 255, 255, 0.7);
+        }
+
+        .loading::after {
+            content: '';
+            display: inline-block;
+            width: 20px;
+            height: 20px;
+            border: 2px solid rgba(255, 255, 255, 0.3);
+            border-top: 2px solid #f7931a;
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+            margin-left: 10px;
+        }
+
+        @keyframes spin {
+            to { transform: rotate(360deg); }
+        }
+
+        .difficulty-hint {
+            font-size: 12px;
+            color: rgba(255, 255, 255, 0.6);
+            text-align: center;
+            margin-top: 8px;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <div class="bitcoin-icon">₿</div>
+            <h1 class="title">Bitcoin TX Guesser</h1>
+            <p class="subtitle">Guess the transaction count per block</p>
+        </div>
+
+        <div class="game-area">
+            <div class="block-info">
+                <div class="block-number" id="blockNumber">Loading...</div>
+                <div class="block-details" id="blockDetails">Fetching block data...</div>
+            </div>
+
+            <div class="input-group">
+                <label class="input-label" for="guess">Your Guess (Number of Transactions):</label>
+                <input 
+                    type="number" 
+                    id="guess" 
+                    class="guess-input" 
+                    placeholder="Enter your guess..."
+                    min="1"
+                    max="10000"
+                >
+                <div class="difficulty-hint">Hint: Bitcoin blocks typically contain 1,000-4,000 transactions</div>
+            </div>
+
+            <button class="submit-btn" id="submitBtn" onclick="submitGuess()">
+                Submit Guess
+            </button>
+
+            <div id="result" style="display: none;"></div>
+            
+            <button class="new-round-btn" id="newRoundBtn" onclick="newRound()" style="display: none;">
+                🎯 Try Another Block
+            </button>
+        </div>
+
+        <div class="stats">
+            <div class="stat-item">
+                <div class="stat-value" id="correctGuesses">0</div>
+                <div class="stat-label">Correct</div>
+            </div>
+            <div class="stat-item">
+                <div class="stat-value" id="totalGuesses">0</div>
+                <div class="stat-label">Total</div>
+            </div>
+        </div>
+    </div>
+
+    <script type="module">
+        // Farcaster Mini App SDK (simulated for demo)
+        const sdk = {
+            actions: {
+                ready: async () => console.log('Mini app ready'),
+                close: () => console.log('Mini app closed'),
+                openUrl: (url) => window.open(url, '_blank')
+            },
+            context: {
+                user: { fid: 12345, username: 'demo_user' }
+            }
+        };
+
+        // Game state
+        let gameState = {
+            currentBlock: null,
+            actualTxCount: 0,
+            correctGuesses: parseInt(localStorage.getItem('btc_correct') || '0'),
+            totalGuesses: parseInt(localStorage.getItem('btc_total') || '0'),
+            isLoading: false
+        };
+
+        // Update stats display
+        function updateStats() {
+            document.getElementById('correctGuesses').textContent = gameState.correctGuesses;
+            document.getElementById('totalGuesses').textContent = gameState.totalGuesses;
+        }
+
+        // Simulate Bitcoin API data (in real implementation, use mempool.space or blockchain.info API)
+        async function fetchRandomBlock() {
+            gameState.isLoading = true;
+            document.getElementById('blockNumber').textContent = 'Loading...';
+            document.getElementById('blockDetails').textContent = 'Fetching block data...';
+            
+            // Simulate API delay
+            await new Promise(resolve => setTimeout(resolve, 1500));
+            
+            // Generate realistic block data
+            const latestBlock = 850000 + Math.floor(Math.random() * 10000); // Recent blocks
+            const txCount = Math.floor(Math.random() * 3000) + 500; // 500-3500 transactions
+            const timestamp = new Date(Date.now() - Math.random() * 7 * 24 * 60 * 60 * 1000);
+            
+            gameState.currentBlock = {
+                height: latestBlock,
+                txCount: txCount,
+                timestamp: timestamp,
+                hash: generateRandomHash()
+            };
+            
+            gameState.actualTxCount = txCount;
+            gameState.isLoading = false;
+            
+            displayBlockInfo();
+        }
+
+        function generateRandomHash() {
+            return '0000000000000000000' + Math.random().toString(16).substr(2, 45);
+        }
+
+        function displayBlockInfo() {
+            const block = gameState.currentBlock;
+            document.getElementById('blockNumber').textContent = `Block #${block.height.toLocaleString()}`;
+            document.getElementById('blockDetails').textContent = 
+                `Mined ${block.timestamp.toLocaleDateString()} • Hash: ${block.hash.substr(0, 16)}...`;
+        }
+
+        async function submitGuess() {
+            const guessInput = document.getElementById('guess');
+            const guess = parseInt(guessInput.value);
+            
+            if (!guess || guess < 1) {
+                alert('Please enter a valid number of transactions!');
+                return;
+            }
+
+            gameState.totalGuesses++;
+            const difference = Math.abs(guess - gameState.actualTxCount);
+            const percentageOff = (difference / gameState.actualTxCount) * 100;
+            
+            let resultClass, resultText, emoji;
+            
+            if (difference === 0) {
+                resultClass = 'correct';
+                resultText = '🎯 Perfect! Exactly right!';
+                gameState.correctGuesses++;
+            } else if (percentageOff <= 5) {
+                resultClass = 'correct';
+                resultText = `🎉 Amazing! Only ${difference} off!`;
+                gameState.correctGuesses++;
+            } else if (percentageOff <= 15) {
+                resultClass = 'close';
+                resultText = `🔥 Very close! Off by ${difference}`;
+            } else if (percentageOff <= 30) {
+                resultClass = 'close';
+                resultText = `👍 Not bad! Off by ${difference}`;
+            } else {
+                resultClass = 'far';
+                resultText = `💪 Keep trying! Off by ${difference}`;
+            }
+
+            // Save stats
+            localStorage.setItem('btc_correct', gameState.correctGuesses.toString());
+            localStorage.setItem('btc_total', gameState.totalGuesses.toString());
+
+            // Display result
+            const resultDiv = document.getElementById('result');
+            resultDiv.className = `result ${resultClass}`;
+            resultDiv.innerHTML = `
+                ${resultText}<br>
+                <strong>Actual: ${gameState.actualTxCount.toLocaleString()} transactions</strong><br>
+                <small>Your guess: ${guess.toLocaleString()}</small>
+            `;
+            resultDiv.style.display = 'block';
+
+            // Show new round button and update stats
+            document.getElementById('newRoundBtn').style.display = 'block';
+            document.getElementById('submitBtn').style.display = 'none';
+            guessInput.disabled = true;
+            
+            updateStats();
+        }
+
+        async function newRound() {
+            // Reset UI
+            document.getElementById('result').style.display = 'none';
+            document.getElementById('newRoundBtn').style.display = 'none';
+            document.getElementById('submitBtn').style.display = 'block';
+            document.getElementById('guess').disabled = false;
+            document.getElementById('guess').value = '';
+            
+            // Fetch new block
+            await fetchRandomBlock();
+        }
+
+        // Initialize game
+        async function initGame() {
+            console.log('Initializing Bitcoin TX Guesser Mini App...');
+            
+            // Initialize Farcaster SDK
+            await sdk.actions.ready();
+            
+            updateStats();
+            await fetchRandomBlock();
+            
+            // Add enter key support
+            document.getElementById('guess').addEventListener('keypress', (e) => {
+                if (e.key === 'Enter' && !gameState.isLoading) {
+                    submitGuess();
+                }
+            });
+        }
+
+        // Global functions
+        window.submitGuess = submitGuess;
+        window.newRound = newRound;
+
+        // Start the game
+        initGame();
+    </script>
+</body>
+</html>
